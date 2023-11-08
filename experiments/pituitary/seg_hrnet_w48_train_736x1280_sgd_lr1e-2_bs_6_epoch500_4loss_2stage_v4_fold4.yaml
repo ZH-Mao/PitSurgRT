@@ -1,0 +1,108 @@
+CUDNN:
+  BENCHMARK: true
+  DETERMINISTIC: false
+  ENABLED: true
+# GPUS: (3,)
+OUTPUT_DIR: "/workspace/zhmao/data/HRNet_with_DICE_BD_Wing_FL_2stage_reproduce"
+LOG_DIR: "log"
+WORKERS: 2
+# PRINT_FREQ: 100
+
+DATASET:
+  DATASET: pituitary
+  ROOT: /workspace/zhmao/code-d/Pituitary-Segment-Centroid/data/Segmentation_Centroid_5_fold_validation_split_4structure
+  CSV_FILE_ROOT: "val4"
+  TEST_SET: "image_centroid_fold4_val.csv"
+  TRAIN_SET: "image_centroid_fold4_train.csv"
+  IMAGE_ROOT: "/workspace/zhmao/data/my_dataset/JPEGImages"
+  MASK_ROOT: "/workspace/zhmao/data/my_dataset/SegmentationClass_bak"
+  NUM_CLASSES: 3
+MODEL:
+  NAME: seg_hrnet
+  PRETRAINED: "pretrained_models/hrnetv2_w48_imagenet_pretrained.pth"
+  # PRETRAINED: '/workspace/zhmao/data/HRNet_with_SegOnly/pituitary/seg_hrnet_w48_train_736x1280_sgd_lr1e-2_bs_6_epoch150_fold1/train_best_mIoU.pth'
+  EXTRA:
+    FINAL_CONV_KERNEL: 1
+    STAGE1:
+      NUM_MODULES: 1
+      NUM_RANCHES: 1
+      BLOCK: BOTTLENECK
+      NUM_BLOCKS:
+        - 4
+      NUM_CHANNELS:
+        - 64
+      FUSE_METHOD: SUM
+    STAGE2:
+      NUM_MODULES: 1
+      NUM_BRANCHES: 2
+      BLOCK: BASIC
+      NUM_BLOCKS:
+        - 4
+        - 4
+      NUM_CHANNELS:
+        - 48
+        - 96
+      FUSE_METHOD: SUM
+    STAGE3:
+      NUM_MODULES: 4
+      NUM_BRANCHES: 3
+      BLOCK: BASIC
+      NUM_BLOCKS:
+        - 4
+        - 4
+        - 4
+      NUM_CHANNELS:
+        - 48
+        - 96
+        - 192
+      FUSE_METHOD: SUM
+    STAGE4:
+      NUM_MODULES: 3
+      NUM_BRANCHES: 4
+      BLOCK: BASIC
+      NUM_BLOCKS:
+        - 4
+        - 4
+        - 4
+        - 4
+      NUM_CHANNELS:
+        - 48
+        - 96
+        - 192
+        - 384
+      FUSE_METHOD: SUM
+# LOSS:
+#   USE_OHEM: false
+#   OHEMTHRES: 0.9
+#   OHEMKEEP: 131072
+TRAIN:
+  IMAGE_SIZE:
+    - 1280
+    - 736
+  # BASE_SIZE: 1280
+  BATCH_SIZE_PER_GPU: 4
+  SHUFFLE: true
+  BEGIN_EPOCH: 0
+  END_EPOCH: 500
+  STAGE1_EPOCH: 300
+  RESUME: true
+  OPTIMIZER: sgd
+  LR: 0.01
+  WD: 0.0001
+  MOMENTUM: 0.9
+  NESTEROV: false
+  LOSS_WEIGHT: [0.9, 0.1, 0.8, 0.2]
+  # FLIP: true
+  # MULTI_SCALE: true
+  # DOWNSAMPLERATE: 1
+  # IGNORE_LABEL: 255
+  IGNORE_LABEL: 255
+  # SCALE_FACTOR: 16
+TEST:
+  IMAGE_SIZE:
+    - 1280
+    - 736
+  # BASE_SIZE: 1280
+  BATCH_SIZE_PER_GPU: 4
+  # FLIP_TEST: false
+  # MULTI_SCALE: false
