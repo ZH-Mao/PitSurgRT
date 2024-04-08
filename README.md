@@ -23,6 +23,21 @@ Endoscopic pituitary surgery entails navigating through the nasal cavity and sph
   <p>The architecture of PitSurgRT for simultaneous segmentation and landmark detection.</p>
 </div>
 
+## Results
+### Performance
+<div align="center">
+  <img src="./docs/Table1.png">
+</div>
+### Real-time performance
+<div align="center">
+  <img src="./docs/Table2.png">
+</div>
+
+### Clinical validation
+<div align="center">
+  <img src="./docs/Clinical Motivation.png">
+  <p>Clinical validation results in which 4 consultant neurosurgeons and 11 trainee neurosurgeons participated to validate the accuracy of PitSurgRT on surgical images from 10 patients.</p>
+</div>
 
 <!-- ---------------------------------------------- -->
 ## Citation
