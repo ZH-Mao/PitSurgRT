@@ -1,15 +1,10 @@
 # ------------------------------------------------------------------------------
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"]='3'  #GPU id
-# os.environ["CUDA_LAUNCH_BLOCKING"]='1'
-# os.environ['MASTER_ADDR'] = 'localhost'
-# os.environ['MASTER_PORT'] = '5678'
+os.environ["CUDA_VISIBLE_DEVICES"]='0'  #GPU id
 
 import argparse
 import os
 import pprint
-# import shutil
-# import sys
 
 import logging
 import time
@@ -20,27 +15,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import torch
-import torch.nn as nn
-# import torch.backends.cudnn as cudnn
 import torch.optim
-# from torch.utils.data.distributed import DistributedSampler
 from tensorboardX import SummaryWriter
-import segmentation_models_pytorch as smp
 
 from lib.config import config
 from lib.config import update_config
-# from core.criterion import CrossEntropy, OhemCrossEntropy
-from lib.core.function_v4 import train, validate, test
+from lib.core.function_v4_1 import train, validate
 from lib.core.bdl_losses import GeneralizedDice, SurfaceLoss, DiceLoss
-# from utils.modelsummary import get_model_summary
-# from utils.utils import create_logger, FullModel, get_rank
 from lib.utils.utils import create_logger
 from lib.datasets.pituitary_v4 import PitDataset
-from lib.models.seg_hrnet import HighResolutionNet
+from lib.models.seg_hrnet_v4_1 import HighResolutionNet
 import random
 from lib.core import mmwing_loss, focal_loss
 import torch.optim as optim
-from torch.optim.lr_scheduler import StepLR
+from itertools import chain
+
 
 seed = 2
 torch.manual_seed(seed)
@@ -56,14 +45,14 @@ torch.backends.cudnn.deterministic = True
 def parse_args():
     parser = argparse.ArgumentParser(description='Train segmentation network')
 
-    parser.add_argument('--cfg',
-                        help='experiment configure file name',
-                        required=True,
-                        type=str)
     # parser.add_argument('--cfg',
-    #                     default=r'/workspace/zhmao/code-d/PitSurgRT/experiments/pituitary/seg_hrnet_w48_train_736x1280_sgd_lr1e-2_bs_6_epoch500_4loss_2stage_v4_fold1.yaml',
     #                     help='experiment configure file name',
+    #                     required=True,
     #                     type=str)
+    parser.add_argument('--cfg',
+                        default=r'/home/zhehua/codes/Pituitary-Segment-Centroid/experiments/pituitary/seg_hrnet_w48_train_736x1280_sgd_lr1e-2_bs_6_4loss_2stage_v4_fold1.yaml',
+                        help='experiment configure file name',
+                        type=str)
     parser.add_argument("--local_rank", type=int, default=0)
     parser.add_argument('opts',
                         help="Modify config options using the command-line",
@@ -90,9 +79,7 @@ def main():
         'valid_global_steps': 0,
     }
 
-    # distributed = False
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    # device = torch.device('cuda:{}'.format(args.local_rank))
 
     # build model
     model = HighResolutionNet(config)
@@ -100,39 +87,37 @@ def main():
     model = model.to(device)
     model = torch.nn.DataParallel(model)
 
-    # # Test net output
-    # dump_input = torch.rand((1, 3, config.TRAIN.IMAGE_SIZE[1], config.TRAIN.IMAGE_SIZE[0])).to(device)
-    # seg, cpts, cptspresence = model(dump_input)
 
     train_dataset = PitDataset(config, is_train=True)
     test_dataset = PitDataset(config, is_train=False)
-
-    trainloader1 = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=config.TRAIN.BATCH_SIZE_PER_GPU,
-        shuffle=config.TRAIN.SHUFFLE,
-        num_workers=config.WORKERS,
-        pin_memory=True,
-        drop_last=True,
-        sampler=None)
-    
+       
     # Resample
-    target = torch.tensor([torch.sum(cpts_presence[:, 0])
-                          for _, _, _, cpts_presence, _, _  in train_dataset])
-    class_count = np.bincount(target)
-    class_weights = 1./torch.tensor(class_count, dtype=float)
-    weights = class_weights[target.long()]
-    sampler = torch.utils.data.WeightedRandomSampler(
-        weights, num_samples=len(weights), replacement=True)
+    if config.TRAIN.RESAMPLE:
+        target = torch.tensor([torch.sum(cpts_presence[:, 0])
+                            for _, _, _, cpts_presence, _, _  in train_dataset])
+        class_count = np.bincount(target)
+        class_weights = 1./torch.tensor(class_count, dtype=float)
+        weights = class_weights[target.long()]
+        sampler = torch.utils.data.WeightedRandomSampler(
+            weights, num_samples=len(weights), replacement=True)
 
-    trainloader2 = torch.utils.data.DataLoader(
-        train_dataset,
-        batch_size=config.TRAIN.BATCH_SIZE_PER_GPU,
-        shuffle=False,
-        num_workers=config.WORKERS,
-        pin_memory=True,
-        drop_last=True,
-        sampler=sampler)
+        trainloader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=config.TRAIN.BATCH_SIZE_PER_GPU,
+            shuffle=False,
+            num_workers=config.WORKERS,
+            pin_memory=True,
+            drop_last=True,
+            sampler=sampler)
+    else:
+        trainloader = torch.utils.data.DataLoader(
+            train_dataset,
+            batch_size=config.TRAIN.BATCH_SIZE_PER_GPU,
+            shuffle=config.TRAIN.SHUFFLE,
+            num_workers=config.WORKERS,
+            pin_memory=True,
+            drop_last=True,
+            sampler=None)
 
     testloader = torch.utils.data.DataLoader(
         test_dataset,
@@ -142,25 +127,46 @@ def main():
         pin_memory=True,
         sampler=None)
 
-    # Seg_loss = nn.CrossEntropyLoss(
-    #     weight=torch.FloatTensor([0.05, 1.0, 2]).to(device))
     Seg_loss = DiceLoss(idc=[0, 1, 2])
-    # Seg_loss = GeneralizedDice(idc=[0, 1, 2])
-    # Seg_loss = smp.losses.FocalLoss('multiclass')
-    # Seg_loss2 = mmhausdorff_loss_gpu.HuasdorffDisstanceLoss()
-    # Seg_loss2 = ABL()  # Active Boundary Loss
     Seg_loss2 = SurfaceLoss(idc=[1, 2])
-    # Seg_loss2 = HausdorffERLoss()
-    # Landmark_loss = nn.MSELoss(reduction='none')
     Landmark_loss = mmwing_loss.WingLoss()
-    # Landmark_presence_loss = nn.BCEWithLogitsLoss()
     # the focal loss is implemented based on BCEWithLogitsLoss, input should be logits
-    Landmark_presence_loss = focal_loss.FocalLoss()
+    Landmark_loss2 = focal_loss.FocalLoss()
     loss_weight=torch.tensor(config.TRAIN.LOSS_WEIGHT).to(device)
 
+    
+    for param in model.module.output1.parameters():
+        param.requires_grad = False
+    for param in model.module.detector1.parameters():
+        param.requires_grad = False
+    for param in model.module.output2.parameters():
+        param.requires_grad = False
+    for param in model.module.detector2.parameters():
+        param.requires_grad = False
 
-    optimizer = optim.SGD(model.parameters(), lr=config.TRAIN.LR, momentum=config.TRAIN.MOMENTUM, weight_decay=config.TRAIN.WD,nesterov=config.TRAIN.NESTEROV)
-    scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
+    shared_params = []
+    head1_params = list(chain(model.module.last_layer.parameters()))
+    head2_params = list(chain(model.module.output1.parameters(), model.module.detector1.parameters()))
+    head3_params = list(chain(model.module.output2.parameters(), model.module.detector2.parameters()))
+    
+    head1_param_ids = set([id(param) for param in head1_params])
+    head2_param_ids = set([id(param) for param in head2_params])
+    head3_param_ids = set([id(param) for param in head3_params])
+    
+    for param in model.module.parameters():
+        if id(param) not in head1_param_ids and id(param) not in head2_param_ids and id(param) not in head3_param_ids:
+            shared_params.append(param)
+
+    optimizer = optim.SGD([
+        {'params': shared_params, 'lr': config.TRAIN.LR},
+        {'params': head1_params, 'lr': config.TRAIN.LR},
+        {'params': head2_params, 'lr': 0.0},
+        {'params': head3_params, 'lr': 0.0}], 
+        momentum=config.TRAIN.MOMENTUM,
+        weight_decay=config.TRAIN.WD,
+        nesterov=config.TRAIN.NESTEROV)
+
+    # scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
 
     epoch_iters = np.int32(train_dataset.__len__() /
                            config.TRAIN.BATCH_SIZE_PER_GPU)
@@ -185,29 +191,29 @@ def main():
     start = timeit.default_timer()
     end_epoch = config.TRAIN.END_EPOCH
     num_iters = config.TRAIN.END_EPOCH * epoch_iters
-    
 
     for epoch in range(last_epoch, end_epoch):
-        if epoch < 300:
-            stage = 0
+        if epoch < config.TRAIN.STAGE1_EPOCH:
+            stage = 1
             train_total_loss, train_mIoU, train_IoU, train_accuracy, train_recall, train_precision, train_mdistance, train_mpck20,\
-            train_pres_acc, train_pres_precision, train_pres_recall = train(
-                config, epoch, config.TRAIN.END_EPOCH, epoch_iters, config.TRAIN.LR, num_iters,trainloader1, optimizer, model, 
-                Seg_loss, Seg_loss2, Landmark_loss, Landmark_presence_loss, writer_dict, device, stage, loss_weight, scheduler)
+                 = train(config, epoch, config.TRAIN.END_EPOCH, epoch_iters, config.TRAIN.LR, num_iters,trainloader, optimizer, model, 
+                        Seg_loss, Seg_loss2, Landmark_loss, Landmark_loss2, writer_dict, device, stage, loss_weight)
         else:
             stage = 2
-            if epoch == 300:
+            if epoch == config.TRAIN.STAGE1_EPOCH:
                 train_best_mIoU =0
                 best_mIoU = 0
+                for param in model.module.output1.parameters():
+                    param.requires_grad = True
+                for param in model.module.detector1.parameters():
+                    param.requires_grad = True 
             train_total_loss, train_mIoU, train_IoU, train_accuracy, train_recall, train_precision, train_mdistance, train_mpck20,\
-                train_pres_acc, train_pres_precision, train_pres_recall = train(
-                    config, epoch, config.TRAIN.END_EPOCH, epoch_iters, config.TRAIN.LR, num_iters,trainloader2, optimizer, model, 
-                    Seg_loss, Seg_loss2, Landmark_loss, Landmark_presence_loss, writer_dict, device, stage, loss_weight, scheduler)
+                    = train(config, epoch, config.TRAIN.END_EPOCH, epoch_iters, config.TRAIN.LR, num_iters,trainloader, optimizer, model, 
+                            Seg_loss, Seg_loss2, Landmark_loss, Landmark_loss2, writer_dict, device, stage, loss_weight)
 
-        valid_loss, mIoU, IoU_array, accuracy, recall, precision, valid_mDistance, mpck20,\
-            val_pres_acc, val_pres_precision, val_pres_recall = validate(
+        valid_loss, mIoU, IoU_array, accuracy, recall, precision, valid_mDistance, mpck20 = validate(
                 config, testloader, model, 
-                Seg_loss, Seg_loss2, Landmark_loss, Landmark_presence_loss, writer_dict, device, stage, loss_weight)
+                Seg_loss, Seg_loss2, Landmark_loss, Landmark_loss2, writer_dict, device, stage, loss_weight)
 
         if args.local_rank == 0:
             logger.info('=> saving checkpoint to {}'.format(
@@ -230,13 +236,12 @@ def main():
                 torch.save(model.module.state_dict(),
                            os.path.join(final_output_dir, 'train_best_mIoU.pth'))
             msg = 'Train==> Loss:{:.3f}, mIoU:{: 4.4f}, Acc:{: 4.4f}, mRecall:{: 4.4f}, mPrecision:{: 4.4f}, Best_mIoU:{: 4.4f},'\
-                'mDistance:{: 4.4f}, Best_MPCK20:{: 4.4f}, Presence_Acc:{: 4.4f}, mPresence_Precision:{: 4.4f}'.format(
+                'mDistance:{: 4.4f}, Best_MPCK20:{: 4.4f}'.format(
                     train_total_loss, train_mIoU, train_accuracy, train_recall.mean(
-                    ), train_precision.mean(), train_best_mIoU, train_mdistance, train_best_mpck20,
-                    train_pres_acc, train_pres_precision.mean())
+                    ), train_precision.mean(), train_best_mIoU, train_mdistance, train_best_mpck20)
 
-            metric = 'Train_Metric==> IoU:{}, Recall:{}, Precision: {}, MPCK20:{: 4.4f}, PresenceRecall:{}'.format(
-                train_IoU, train_recall, train_precision, train_mpck20, train_pres_recall)
+            metric = 'Train_Metric==> IoU:{}, Recall:{}, Precision: {}, MPCK20:{: 4.4f}'.format(
+                train_IoU, train_recall, train_precision, train_mpck20)
             logging.info(msg)
             logging.info(metric)
 
@@ -245,11 +250,11 @@ def main():
             if mIoU > best_mIoU:
                 best_mIoU = mIoU
             msg = 'Val==> Loss:{:.3f}, mIoU:{: 4.4f}, Acc:{: 4.4f}, mRecall:{: 4.4f}, mPrecision:{: 4.4f}, Best_mIoU:{: 4.4f},'\
-                ' mDistance:{: 4.4f}, Best_MPCK20:{: 4.4f}, Presence_Acc:{: 4.4f}, mPresence_Precision:{: 4.4f}'.format(
-                    valid_loss, mIoU, accuracy, recall.mean(), precision.mean(), best_mIoU, valid_mDistance, best_mpck20, val_pres_acc, val_pres_precision.mean())
+                ' mDistance:{: 4.4f}, Best_MPCK20:{: 4.4f}'.format(
+                    valid_loss, mIoU, accuracy, recall.mean(), precision.mean(), best_mIoU, valid_mDistance, best_mpck20)
 
-            metric = 'Val_Metric==> IoU_array:{}, Recall:{}, Precision:{}, MPCK20:{: 4.4f}, PresenceRecall:{}'.format(
-                IoU_array, recall, precision, mpck20, val_pres_recall)
+            metric = 'Val_Metric==> IoU_array:{}, Recall:{}, Precision:{}, MPCK20:{: 4.4f}'.format(
+                IoU_array, recall, precision, mpck20)
             logging.info(msg)
             logging.info(metric)
 
