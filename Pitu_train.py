@@ -20,7 +20,7 @@ from tensorboardX import SummaryWriter
 
 from lib.config import config
 from lib.config import update_config
-from lib.core.function import train, validate
+from lib.core.function_v4 import train, validate
 from lib.core.bdl_losses import GeneralizedDice, SurfaceLoss, DiceLoss
 from lib.utils.utils import create_logger
 from lib.datasets.pituitary import PitDataset
