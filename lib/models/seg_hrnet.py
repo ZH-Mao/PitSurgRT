@@ -1,3 +1,9 @@
+# ------------------------------------------------------------------------------
+# Copyright (c) Microsoft
+# Licensed under the MIT License.
+# Written by Ke Sun (sunk@mail.ustc.edu.cn)
+# ------------------------------------------------------------------------------
+
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -249,16 +255,9 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
-# zhehua========================================start
-
 
 class HRNetPoolOutput(nn.Module):
-    '''校验完成:完成输出的通道变换, 并经过自适应均值池化得到1x1的图像
 
-        params:
-            inchannels:  输出层的输入通道
-            outchannels: 输出层的变换后的输出通道
-    '''
 
     def __init__(self, inchannels, outchannels):
         super(HRNetPoolOutput, self).__init__()
@@ -278,12 +277,6 @@ class HRNetPoolOutput(nn.Module):
 
 
 class HRNetRegression(nn.Module):
-    '''校验完成：产生预测分类的结果，支持多分辨率预测输出
-
-        params:
-            inchannels:  输入大小
-            num_classes: 分类数 > 0
-    '''
 
     def __init__(self, inchannels, num_classes):
         super(HRNetRegression, self).__init__()
@@ -297,8 +290,6 @@ class HRNetRegression(nn.Module):
         out = self.out_fc(out)
 
         return out
-# zhehua========================================end
-
 
 class HighResolutionNet(nn.Module):
 
@@ -374,8 +365,6 @@ class HighResolutionNet(nn.Module):
         # The regression layers for centroid detection
         self.output1 = HRNetPoolOutput(last_inp_channels, 2048)
         self.detector1 = HRNetRegression(2048, 8)
-        self.output2 = HRNetPoolOutput(last_inp_channels, 2048)
-        self.detector2 = HRNetRegression(2048, 4)
 
     def _make_transition_layer(
             self, num_channels_pre_layer, num_channels_cur_layer):
@@ -513,11 +502,7 @@ class HighResolutionNet(nn.Module):
         cpts = self.output1(x)
         cpts = self.detector1(cpts)
 
-        cpts_precence = self.output2(x)
-        cpts_precence = self.detector2(cpts_precence)
-
-        return x_seg, cpts, cpts_precence
-        # return x_seg
+        return x_seg, cpts 
 
     def init_weights(self, pretrained='',):
         logger.info('=> init weights from normal distribution')
