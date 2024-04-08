@@ -3,7 +3,6 @@
 # Licensed under the MIT License.
 # ------------------------------------------------------------------------------
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = '3'  # GPU id
 import random
 from lib.models.seg_hrnet import HighResolutionNet
 from lib.datasets.pituitary import PitDataset
@@ -12,7 +11,6 @@ from lib.core.function_v4 import test
 from lib.config import update_config
 from lib.config import config
 import segmentation_models_pytorch as smp
-# from tensorboardX import SummaryWriter
 import torch.optim
 import torch.nn as nn
 import torch
@@ -25,23 +23,7 @@ import logging
 import pprint
 import argparse
 
-# os.environ["CUDA_LAUNCH_BLOCKING"]='1'
-# os.environ['MASTER_ADDR'] = 'localhost'
-# os.environ['MASTER_PORT'] = '5678'
-
-# import shutil
-# import sys
-
-
-# import torch.backends.cudnn as cudnn
-# from torch.utils.data.distributed import DistributedSampler
-
-# import _init_paths
-# import models
-# import datasets
-# from core.criterion import CrossEntropy, OhemCrossEntropy
 from lib.utils.modelsummary import get_model_summary
-# from utils.utils import create_logger, FullModel, get_rank
 
 seed = 2
 torch.manual_seed(seed)
@@ -109,17 +91,6 @@ def main():
     model = model.to(device)
     model = torch.nn.DataParallel(model)
 
-    # dump_input = torch.rand(
-    #     (1, 3, config.TRAIN.IMAGE_SIZE[1], config.TRAIN.IMAGE_SIZE[0])
-    # )
-    # logger.info(get_model_summary(model.to(device), dump_input.to(device)))
-
-    # if config.TEST.MODEL_FILE:
-    #     model_state_file = config.TEST.MODEL_FILE
-    # else:
-    #     model_state_file = os.path.join(final_output_dir,
-    #                                     'best_mIoU.pth')
-    # logger.info('=> loading model from {}'.format(model_state_file))
 
     # prepare data
     test_dataset = PitDataset(config, is_train=False)
