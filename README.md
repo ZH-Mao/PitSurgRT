@@ -6,10 +6,10 @@
 Endoscopic pituitary surgery entails navigating through the nasal cavity and sphenoid sinus to access the sella using an endoscope. This procedure is intricate due to the proximity of crucial anatomical structures (e.g. carotid arteries and optic nerves) to pituitary tumours, and any unintended damage can lead to severe complications including blindness and death. Intraoperative guidance during this surgery could support improved localization of the critical structures leading to reducing the risk of complications. A deep learning network PitSurgRT is proposed for real-time localization of critical structures in endoscopic pituitary surgery. The network uses High-Resolution Net (HRNet) as a backbone with a multi-head for jointly localizing critical anatomical structures while segmenting larger structures simultaneously. Moreover, the trained model is optimized and accelerated by using TensorRT. Finally, the model predictions are shown to neurosurgeons, to test their guidance capabilities. Compared with the state-of-the-art method, our model significantly reduces the mean error in landmark detection of the critical structures from 138.76 to 54.40 pixels in a 1280 $\times$ 720-pixel image. Furthermore, the semantic segmentation of the most critical structure, sella, is improved by 4.39\% IoU. The inference speed of the accelerated model achieves 298 frames per second with floating-point-16 precision. In the study of 15 neurosurgeons, 88.67\% of predictions are considered accurate enough for real-time guidance. The results from the quantitative evaluation, real-time acceleration, and neurosurgeon study demonstrate the proposed method is highly promising in providing real-time intraoperative guidance of the critical anatomical structures in endoscopic pituitary surgery.
 
 ## Clinical Motivation
-<p align="center">
-<img src="./docs/Clinical Motivation.png" align="center">
-</p>
-
+<div align="center">
+  <img src="./docs/Clinical Motivation.png" width="600">
+  <p> Critical anatomical structures as present during the sellar phase of endoscopic pituitary surgery. Sella (1) and Clival Recess (2) are relatively bigger structures and easy to identify. Carotids (3 left, 6 right) and Optic Protuberance (4 left, 5 right) are critical neurovascular structures to be avoided.</p>
+</div>
 
 ## Contributions
 * Based on the HRNet, we proposed a multitask network named PitSurgRT that can solve the anatomy segmentation and landmark detection simultaneously in endoscopic pituitary surgery.
@@ -18,9 +18,10 @@ Endoscopic pituitary surgery entails navigating through the nasal cavity and sph
 * The proposed model is accelerated by using the TensorRT technique to achieve real-time intraoperative guidance. The results are verified by 15 neurosurgeons.
 
 ## Architecture
-<p align="center">
-<img src="./docs/PitSurgRT.png" align="center">
-</p>
+<div align="center">
+  <img src="./docs/PitSurgRT.png">
+  <p>The architecture of PitSurgRT for simultaneous segmentation and landmark detection.</p>
+</div>
 
 
 <!-- ---------------------------------------------- -->
