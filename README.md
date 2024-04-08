@@ -1,21 +1,26 @@
 # PitSurgRT: real-time localization of critical anatomical structures in endoscopic pituitary surgery
 ### [Paper](https://doi.org/10.1007/s11548-024-03094-2) | [BibTex](#citation)
 
-## PitSurgRT
+## Abstract
 
-Purpose: Endoscopic pituitary surgery entails navigating through the nasal cavity and sphenoid sinus to access the sella using an endoscope. This procedure is intricate due to the proximity of crucial anatomical structures (e.g. carotid arteries and optic nerves) to pituitary tumours, and any unintended damage can lead to severe complications including blindness and death. Intraoperative guidance during this surgery could support improved localization of the critical structures leading to reducing the risk of complications.
+Endoscopic pituitary surgery entails navigating through the nasal cavity and sphenoid sinus to access the sella using an endoscope. This procedure is intricate due to the proximity of crucial anatomical structures (e.g. carotid arteries and optic nerves) to pituitary tumours, and any unintended damage can lead to severe complications including blindness and death. Intraoperative guidance during this surgery could support improved localization of the critical structures leading to reducing the risk of complications. A deep learning network PitSurgRT is proposed for real-time localization of critical structures in endoscopic pituitary surgery. The network uses High-Resolution Net (HRNet) as a backbone with a multi-head for jointly localizing critical anatomical structures while segmenting larger structures simultaneously. Moreover, the trained model is optimized and accelerated by using TensorRT. Finally, the model predictions are shown to neurosurgeons, to test their guidance capabilities. Compared with the state-of-the-art method, our model significantly reduces the mean error in landmark detection of the critical structures from 138.76 to 54.40 pixels in a 1280 $\times$ 720-pixel image. Furthermore, the semantic segmentation of the most critical structure, sella, is improved by 4.39\% IoU. The inference speed of the accelerated model achieves 298 frames per second with floating-point-16 precision. In the study of 15 neurosurgeons, 88.67\% of predictions are considered accurate enough for real-time guidance. The results from the quantitative evaluation, real-time acceleration, and neurosurgeon study demonstrate the proposed method is highly promising in providing real-time intraoperative guidance of the critical anatomical structures in endoscopic pituitary surgery.
 
-Methods: A deep learning network PitSurgRT is proposed for real-time localization of critical structures in endoscopic pituitary surgery. The network uses High-Resolution Net (HRNet) as a backbone with a multi-head for jointly localizing critical anatomical structures while segmenting larger structures simultaneously. Moreover, the trained model is optimized and accelerated by using TensorRT. Finally, the model predictions are shown to neurosurgeons, to test their guidance capabilities.
+## Clinical Motivation
+<p align="center">
+<img src="./docs/Clinical Motivation.png" align="center">
+</p>
 
-Results: Compared with the state-of-the-art method, our model significantly reduces the mean error in landmark detection of the critical structures from 138.76 to 54.40 pixels in a 1280 $\times$ 720-pixel image. Furthermore, the semantic segmentation of the most critical structure, sella, is improved by 4.39\% IoU. The inference speed of the accelerated model achieves 298 frames per second with floating-point-16 precision. In the study of 15 neurosurgeons, 88.67\% of predictions are considered accurate enough for real-time guidance.
 
-Conclusion: The results from the quantitative evaluation, real-time acceleration, and neurosurgeon study demonstrate the proposed method is highly promising in providing real-time intraoperative guidance of the critical anatomical structures in endoscopic pituitary surgery.
+## Contributions
+* Based on the HRNet, we proposed a multitask network named PitSurgRT that can solve the anatomy segmentation and landmark detection simultaneously in endoscopic pituitary surgery.
+* An effective loss function that combines four losses is proposed in this paper to solve the issue of the highly imbalanced dataset for the training.
+* Through the 5-fold cross-validation based on the in-vivo dataset, the proposed PitSurgRT is demonstrated to significantly improve the landmark detection and semantic segmentation of the critical anatomical structures in the sellar phase of endoscopic pituitary surgery compared with our previous work PAINet.
+* The proposed model is accelerated by using the TensorRT technique to achieve real-time intraoperative guidance. The results are verified by 15 neurosurgeons.
 
 ## Architecture
 <p align="center">
 <img src="./docs/PitSurgRT.png" align="center">
 </p>
-
 
 
 <!-- ---------------------------------------------- -->
