@@ -8,7 +8,6 @@ import os
 import time
 
 import numpy as np
-# import numpy.ma as ma
 from tqdm import tqdm
 
 import torch
@@ -18,27 +17,28 @@ from torch.nn import functional as F
 
 from ..utils.utils import AverageMeter
 from ..utils.utils import get_confusion_matrix
-import cv2
+from ..utils.utils import adjust_learning_rate
+from ..utils.utils import get_world_size, get_rank
 # import segmentation_models_pytorch as smp
 from PIL import Image, ImageDraw
 
 
-# def reduce_tensor(inp):
-#     """
-#     Reduce the loss from all processes so that 
-#     process with rank 0 has the averaged results.
-#     """
-#     world_size = get_world_size()
-#     if world_size < 2:
-#         return inp
-#     with torch.no_grad():
-#         reduced_inp = inp
-#         dist.reduce(reduced_inp, dst=0)
-#     return reduced_inp
+def reduce_tensor(inp):
+    """
+    Reduce the loss from all processes so that 
+    process with rank 0 has the averaged results.
+    """
+    world_size = get_world_size()
+    if world_size < 2:
+        return inp
+    with torch.no_grad():
+        reduced_inp = inp
+        dist.reduce(reduced_inp, dst=0)
+    return reduced_inp
 
 
 def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader, optimizer, model, Seg_loss, Seg_loss2,
-          Landmark_loss, Landmark_presence_loss, writer_dict, device, stage, loss_weight, scheduler=None):
+          Landmark_loss, Landmark_loss2, writer_dict, device, stage, loss_weight, scheduler=None):
 
     # Training
     model.train()
@@ -46,8 +46,8 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
     ave_loss = AverageMeter()
     ave_seg_loss = AverageMeter()
     ave_bound_loss = AverageMeter()
-    ave_cpts_loss = AverageMeter()
-    ave_presence_loss = AverageMeter()
+    ave_Wing_loss = AverageMeter()
+    ave_FL_loss = AverageMeter()
     
     tic = time.time()
     cur_iters = epoch*epoch_iters
@@ -59,9 +59,6 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
     total_num_points = 0
     total_distance = 0
     total_num_Present= 0 
-    total_num_Absent=0
-    total_num_truePresent = 0
-    total_num_trueAbsent = 0
 
     for i_iter, batch in enumerate(tqdm(trainloader)):
         images, labels, cpts_gt, cpts_presence, _, dist_map_label= batch
@@ -74,7 +71,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
         
         dist_map_label = dist_map_label.to(device)
 
-        seg_out, cpts_out, cpts_presence_out = model(images)
+        seg_out, cpts_out = model(images)
         ph, pw = seg_out.size(2), seg_out.size(3)
         h, w = labels.size(1), labels.size(2)
         if ph != h or pw != w:
@@ -82,23 +79,22 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
 
         seg_loss = Seg_loss(seg_out, labels)
         
-        cpts_out = torch.reshape(cpts_out, (cpts_out.size(0), cpts_gt.size(1), cpts_gt.size(2)))
+        cpts_out = torch.reshape(cpts_out, (cpts_gt.size(0), cpts_gt.size(1), cpts_gt.size(2)))
         if stage == 1:
             cpts_out = cpts_out.detach()
-            cpts_presence_out = cpts_presence_out.detach()
             seg_loss2 = Seg_loss2(seg_out, dist_map_label)
             cpts_loss = 0
-            presence_loss = 0
+            cpts_loss2 = 0
         else:  
             seg_loss2 = Seg_loss2(seg_out, dist_map_label)
             cpts_loss = Landmark_loss(cpts_out, cpts_gt)
-            presence_loss = Landmark_presence_loss(cpts_presence_out, cpts_presence[:,:,0])
+            cpts_loss2 = Landmark_loss2(cpts_out, cpts_gt)
 
         # calculate euclidean_distance between predicted and ground-truth landmarks
-        cpts_present_loss = torch.square(cpts_out-cpts_gt).detach() * cpts_presence
-        squared_distance = torch.zeros_like(cpts_present_loss)
-        squared_distance[:, :, 0] = cpts_present_loss[:, :, 0]*(1280**2)
-        squared_distance[:, :, 1] = cpts_present_loss[:, :, 1]*(736**2)
+        norm_squared_distance = torch.square(cpts_out-cpts_gt).detach() * cpts_presence
+        squared_distance = torch.zeros_like(norm_squared_distance)
+        squared_distance[:, :, 0] = norm_squared_distance[:, :, 0]*(1280**2)
+        squared_distance[:, :, 1] = norm_squared_distance[:, :, 1]*(736**2)
         euclidean_distance = torch.sum(
             squared_distance, dim=(2), keepdim=True)
         euclidean_distance = torch.sqrt(euclidean_distance.squeeze(dim=2))
@@ -109,18 +105,17 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
         total_num_inThresh += torch.sum(num_inThresh)
         total_num_Present += torch.sum(cpts_presence[:, :, 0])
         total_distance += torch.sum(euclidean_distance)
-        
-        # calculate the number of presence
-        pre_presence = torch.where(torch.sigmoid(cpts_presence_out).cpu() < torch.tensor(0.5), torch.tensor(0), torch.tensor(1)).to(device)
-        total_num_truePresent += torch.sum((pre_presence+cpts_presence[:, :, 0].to(torch.uint8)==2).long())
-        total_num_trueAbsent += torch.sum((pre_presence+cpts_presence[:, :, 0].to(torch.uint8)==0).long())
 
         cpts_loss = cpts_loss * cpts_presence
+        cpts_loss2 = cpts_loss2 * cpts_presence
 
         if torch.sum(cpts_presence) > 0:
             cpts_loss = torch.sum(cpts_loss) / torch.sum(cpts_presence)
+            cpts_loss2 = torch.sum(cpts_loss2) / torch.sum(cpts_presence)
         else:
             cpts_loss = torch.sum(cpts_loss)
+            cpts_loss2 = torch.sum(cpts_loss2)
+            
 
         if torch.isnan(cpts_loss):
             print("cpts_loss is nan")
@@ -131,8 +126,8 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
         seg_loss      = seg_loss*loss_weight[0]
         seg_loss2     = seg_loss2*loss_weight[1]
         cpts_loss     = cpts_loss*loss_weight[2]
-        presence_loss = presence_loss*loss_weight[3]
-        loss          = seg_loss + seg_loss2 + cpts_loss + presence_loss
+        cpts_loss2    = cpts_loss2*loss_weight[3]
+        loss          = seg_loss + seg_loss2 + cpts_loss + cpts_loss2
         
         if torch.isnan(loss):
             print("loss is nan")
@@ -149,8 +144,8 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
         ave_loss.update(loss.item())
         ave_seg_loss.update(seg_loss.item())
         ave_bound_loss.update(seg_loss2.item())
-        ave_cpts_loss.update(cpts_loss.item())
-        ave_presence_loss.update(presence_loss.item())
+        ave_Wing_loss.update(cpts_loss.item())
+        ave_FL_loss.update(cpts_loss2.item())
 
         confusion_matrix += get_confusion_matrix(
             labels,
@@ -158,13 +153,21 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
             size,
             config.DATASET.NUM_CLASSES,
             config.TRAIN.IGNORE_LABEL)
+        lr = base_lr * ((1-float(i_iter+cur_iters)/num_iters)**(0.9))
         
-        optimizer.param_groups[0]['lr'] = base_lr*((1-float(i_iter+cur_iters)/num_iters)**(0.9))
-
+        if stage==1:
+            optimizer.param_groups[0]['lr'] = lr
+            optimizer.param_groups[1]['lr'] = lr
+        else:
+            optimizer.param_groups[0]['lr'] = lr
+            optimizer.param_groups[1]['lr'] = lr
+            optimizer.param_groups[2]['lr'] = lr
+            # optimizer.param_groups[3]['lr'] = lr
+            
     confusion_matrix = torch.from_numpy(confusion_matrix).to(device)
-    # reduced_confusion_matrix = reduce_tensor(confusion_matrix)
+    reduced_confusion_matrix = reduce_tensor(confusion_matrix)
 
-    confusion_matrix = confusion_matrix.cpu().numpy()
+    confusion_matrix = reduced_confusion_matrix.cpu().numpy()
     pos = confusion_matrix.sum(1)
     res = confusion_matrix.sum(0)
     tp = np.diag(confusion_matrix)
@@ -178,23 +181,14 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
     train_total_loss = ave_loss.average()
     train_segmentation_loss = ave_seg_loss.average()
     train_bound_loss = ave_bound_loss.average()
-    train_centroid_loss = ave_cpts_loss.average()
-    train_presence_loss = ave_presence_loss.average()
+    train_Wing_loss = ave_Wing_loss.average()
+    train_FL_loss = ave_FL_loss.average()
     
-    total_num_Absent = total_num_points-total_num_Present
-    total_num_falseAbsent = total_num_Present -total_num_truePresent
-    total_num_falsePresent = total_num_Absent -total_num_trueAbsent
-    train_presence_accuracy = (total_num_truePresent+total_num_trueAbsent)/total_num_points*100
-    train_presence_precision = torch.tensor([total_num_truePresent/(total_num_truePresent+total_num_falsePresent), 
-                                         total_num_trueAbsent/(total_num_trueAbsent+total_num_falseAbsent)])*100
-    train_presence_recall = torch.tensor([total_num_truePresent/total_num_Present,
-                                      total_num_trueAbsent/total_num_Absent])*100
-
 
     msg = 'Epoch: [{}/{}], Time: {:.2f}, ' \
-        'lr: {:.6f}, Train_total_Loss: {:.6f}, Train_seg_loss: {:.6f}, Train_bound_loss:{:.6f},Train_cpts_loss: {:.6f}, Train_presence_loss: {:.6f}'.format(
+        'lr: {:.6f}, Train_total_Loss: {:.6f}, Train_seg_loss: {:.6f}, Train_bound_loss:{:.6f},Train_Wing_loss: {:.6f}, Train_FL_loss: {:.6f}'.format(
             epoch, num_epoch, batch_time.average(
-            ), optimizer.param_groups[0]['lr'], train_total_loss, train_segmentation_loss, train_bound_loss, train_centroid_loss, train_presence_loss
+            ), optimizer.param_groups[0]['lr'], train_total_loss, train_segmentation_loss, train_bound_loss, train_Wing_loss, train_FL_loss
         )
     logging.info(msg)
 
@@ -206,9 +200,9 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
     writer.add_scalar('Boundary_loss/train_boundary_loss',
                       train_bound_loss, global_steps)
     writer.add_scalar('Landmark_loss/train_landmark_loss',
-                      train_centroid_loss, global_steps)
-    writer.add_scalar('Landmark_presence_loss/train_landmark_presence_loss',
-                      train_presence_loss, global_steps)
+                      train_Wing_loss, global_steps)
+    writer.add_scalar('Landmark_loss2/train_landmark_loss2',
+                      train_FL_loss, global_steps)
     writer.add_scalar('Mean_distance/train_mdistance',
                       train_mdistance, global_steps)
     writer.add_scalar('mIoU/train_mIoU', train_mIoU, global_steps)
@@ -216,25 +210,24 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
     writer.add_scalar('Learning_rate', optimizer.param_groups[0]['lr'], global_steps)
 
     writer_dict['train_global_steps'] = global_steps + 1
-    return train_total_loss, train_mIoU, train_IoU, train_accuracy, train_recall, train_precision, train_mdistance, train_mpck20,\
-           train_presence_accuracy, train_presence_precision, train_presence_recall
+    return train_total_loss, train_mIoU, train_IoU, train_accuracy, train_recall, train_precision, train_mdistance, train_mpck20
 
 
-def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Landmark_presence_loss, writer_dict, device, stage, loss_weight):
+def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Landmark_loss2, writer_dict, device, stage, loss_weight):
     model.eval()
     ave_loss = AverageMeter()
     ave_seg_loss = AverageMeter()
     ave_bound_loss = AverageMeter()
-    ave_cpts_loss = AverageMeter()
-    ave_presence_loss = AverageMeter()
+    ave_Wing_loss = AverageMeter()
+    ave_FL_loss = AverageMeter()
     confusion_matrix = np.zeros((config.DATASET.NUM_CLASSES, config.DATASET.NUM_CLASSES))
     total_num_inThresh = 0
     total_num_points = 0
     total_distance = 0
     total_num_Present= 0 
-    total_num_Absent=0
-    total_num_truePresent = 0
-    total_num_trueAbsent = 0
+    # total_num_Absent=0
+    # total_num_truePresent = 0
+    # total_num_trueAbsent = 0
 
     with torch.no_grad():
         for _, batch in enumerate(tqdm(testloader)):
@@ -248,7 +241,7 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
             
             dist_map_label = dist_map_label.to(device)
 
-            seg_pre, cpts_pre, cpts_presence_pre = model(image)
+            seg_pre, cpts_pre = model(image)
             pred = F.interpolate(input=seg_pre, size=(
                 size[-2], size[-1]), mode='bilinear')
             seg_loss = Seg_loss(pred, label)
@@ -263,17 +256,18 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
             if stage == 1:
                 seg_loss2=Seg_loss2(pred, dist_map_label)
                 cpts_loss = 0
-                presence_loss = 0
+                cpts_loss2 = 0
             else:
                 seg_loss2=Seg_loss2(pred, dist_map_label)
                 cpts_loss = Landmark_loss(cpts_pre, cpts_gt)
-                presence_loss = Landmark_presence_loss(cpts_presence_pre, cpts_presence[:,:,0])
+                # presence_loss = Landmark_presence_loss(cpts_presence_pre, cpts_presence[:,:,0])
+                cpts_loss2 = Landmark_loss2(cpts_pre, cpts_gt)
 
             # calculate euclidean_distance between predicted and ground-truth landmarks
-            cpts_present_loss = torch.square(cpts_pre-cpts_gt) * cpts_presence
-            squared_distance = torch.zeros_like(cpts_present_loss)
-            squared_distance[:, :, 0] = cpts_present_loss[:, :, 0]*(1280**2)
-            squared_distance[:, :, 1] = cpts_present_loss[:, :, 1]*(736**2)
+            norm_squared_distance = torch.square(cpts_pre-cpts_gt) * cpts_presence
+            squared_distance = torch.zeros_like(norm_squared_distance)
+            squared_distance[:, :, 0] = norm_squared_distance[:, :, 0]*(1280**2)
+            squared_distance[:, :, 1] = norm_squared_distance[:, :, 1]*(736**2)
             euclidean_distance = torch.sum(
                 squared_distance, dim=(2), keepdim=True)
             euclidean_distance = torch.sqrt(euclidean_distance.squeeze(dim=2))
@@ -285,29 +279,28 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
             total_num_Present += torch.sum(cpts_presence[:, :, 0])
             total_distance += torch.sum(euclidean_distance)
             
-            # calculate the number of presence
-            pre_presence = torch.where(torch.sigmoid(cpts_presence_pre).cpu() < torch.tensor(0.5), torch.tensor(0), torch.tensor(1)).to(device)
-            total_num_truePresent += torch.sum((pre_presence+cpts_presence[:, :, 0].to(torch.uint8)==2).long())
-            total_num_trueAbsent += torch.sum((pre_presence+cpts_presence[:, :, 0].to(torch.uint8)==0).long())
 
             cpts_loss = cpts_loss * cpts_presence
+            cpts_loss2 = cpts_loss2 * cpts_presence
             if torch.sum(cpts_presence) > 0:
                 cpts_loss = torch.sum(cpts_loss) / torch.sum(cpts_presence)
+                cpts_loss2 = torch.sum(cpts_loss2) / torch.sum(cpts_presence)
             else:
                 cpts_loss = torch.sum(cpts_loss)
+                cpts_loss2 = torch.sum(cpts_loss2)
 
             seg_loss      = seg_loss*loss_weight[0]
             seg_loss2     = seg_loss2*loss_weight[1]
             cpts_loss     = cpts_loss*loss_weight[2]
-            presence_loss = presence_loss*loss_weight[3]
-            loss          = seg_loss + seg_loss2 + cpts_loss + presence_loss
+            cpts_loss2 = cpts_loss2*loss_weight[3]
+            loss          = seg_loss + seg_loss2 + cpts_loss + cpts_loss2
 
             ave_loss.update(loss.item())
             ave_seg_loss.update(seg_loss.item())
             ave_bound_loss.update(seg_loss2.item())
 
-            ave_cpts_loss.update(cpts_loss.item())
-            ave_presence_loss.update(presence_loss.item())
+            ave_Wing_loss.update(cpts_loss.item())
+            ave_FL_loss.update(cpts_loss2.item())
 
             confusion_matrix += get_confusion_matrix(
                 label,
@@ -317,9 +310,9 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
                 config.TRAIN.IGNORE_LABEL)
 
     confusion_matrix = torch.from_numpy(confusion_matrix).to(device)
-    # reduced_confusion_matrix = reduce_tensor(confusion_matrix)
+    reduced_confusion_matrix = reduce_tensor(confusion_matrix)
 
-    confusion_matrix = confusion_matrix.cpu().numpy()
+    confusion_matrix = reduced_confusion_matrix.cpu().numpy()
     pos = confusion_matrix.sum(1)
     res = confusion_matrix.sum(0)
     tp = np.diag(confusion_matrix)
@@ -331,20 +324,12 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
     val_total_loss = ave_loss.average()
     val_segmentation_loss = ave_seg_loss.average()
     val_boundary_loss = ave_bound_loss.average()
-    val_centroid_loss = ave_cpts_loss.average()
-    val_presence_loss = ave_presence_loss.average()
+    val_Wing_loss = ave_Wing_loss.average()
+    val_FL_loss = ave_FL_loss.average()
 
     mean_distance = total_distance/total_num_Present
     mpck20 = total_num_inThresh/total_num_Present*100
     
-    total_num_Absent = total_num_points-total_num_Present
-    total_num_falseAbsent = total_num_Present -total_num_truePresent
-    total_num_falsePresent = total_num_Absent -total_num_trueAbsent
-    val_presence_accuracy = (total_num_truePresent+total_num_trueAbsent)/total_num_points*100
-    val_presence_precision = torch.tensor([total_num_truePresent/(total_num_truePresent+total_num_falsePresent), 
-                                         total_num_trueAbsent/(total_num_trueAbsent+total_num_falseAbsent)])*100
-    val_presence_recall = torch.tensor([total_num_truePresent/total_num_Present,
-                                      total_num_trueAbsent/total_num_Absent])*100
 
     writer = writer_dict['writer']
     global_steps = writer_dict['valid_global_steps']
@@ -354,24 +339,20 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
     writer.add_scalar('Boundary_loss/valid_boundary_loss',
                       val_boundary_loss, global_steps)
     writer.add_scalar('Landmark_loss/valid_landmark_loss',
-                      val_centroid_loss, global_steps)
-    writer.add_scalar('Landmark_presence_loss/valid_landmark_presence_loss',
-                      val_presence_loss, global_steps)
+                      val_Wing_loss, global_steps)
+    writer.add_scalar('Landmark_loss2/valid_landmark_loss2',
+                      val_FL_loss, global_steps)
     writer.add_scalar('Mean_distance/valid_mDistance',
                       mean_distance, global_steps)
     writer.add_scalar('mIoU/valid_mIoU', mean_IoU, global_steps)
     writer.add_scalar('MPCK20/valid_MPCK20', mpck20, global_steps)
     writer_dict['valid_global_steps'] = global_steps + 1
     
-    msg = 'Valid_total_Loss: {:.6f}, Valid_seg_loss: {:.6f}, Valid_bound_loss:{:.6f}, Valid_cpts_loss: {:.6f}, Valid_presence_loss: {:.6f}'.format(
-            val_total_loss, val_segmentation_loss, val_boundary_loss, val_centroid_loss, val_presence_loss)
-    # msg = 'Valid_total_Loss: {:.6f}, Valid_seg_loss: {:.6f}, Valid_cpts_loss: {:.6f}, Valid_presence_loss: {:.6f}'.format(
-    #         val_total_loss, val_segmentation_loss, val_centroid_loss, val_presence_loss)
+    msg = 'Valid_total_Loss: {:.6f}, Valid_seg_loss: {:.6f}, Valid_bound_loss:{:.6f}, Valid_Wing_loss: {:.6f}, Valid_FL_loss: {:.6f}'.format(
+            val_total_loss, val_segmentation_loss, val_boundary_loss, val_Wing_loss, val_FL_loss)
     logging.info(msg)
     
-    return val_total_loss, mean_IoU, IoU_array, accuracy, recall, precision, mean_distance, mpck20,\
-        val_presence_accuracy, val_presence_precision, val_presence_recall
-
+    return val_total_loss, mean_IoU, IoU_array, accuracy, recall, precision, mean_distance, mpck20
 
 def test(config, testloader, model,
          sv_dir='', sv_pred=True, device=None):
@@ -392,31 +373,15 @@ def test(config, testloader, model,
             cpts_presence = cpts_presence.to(device)
             total_num_points +=cpts_presence.size(0)*cpts_presence.size(1)
 
-            seg_pre, cpts_pre, cpts_presence_pre = model(image)
+            seg_pre, cpts_pre = model(image)
             pred = F.interpolate(input=seg_pre, size=(
                 size[-2], size[-1]), mode='bilinear')
 
             cpts_pre = torch.reshape(
                 cpts_pre, (cpts_pre.size(0), cpts_gt.size(1), cpts_gt.size(2)))
 
-            # cpts_pre= cpts_pre*cpts_presence
-            total_num_Present += torch.sum(cpts_presence[:, :, 0])
-            pre_presence = torch.where(torch.sigmoid(cpts_presence_pre).cpu() < torch.tensor(0.1), torch.tensor(0), torch.tensor(1)).to(device)
-            total_num_truePresent += torch.sum((pre_presence+cpts_presence[:, :, 0].to(torch.uint8)==2).long())
-            total_num_trueAbsent += torch.sum((pre_presence+cpts_presence[:, :, 0].to(torch.uint8)==0).long())
-            
-            total_num_Absent = total_num_points-total_num_Present
-            total_num_falseAbsent = total_num_Present -total_num_truePresent
-            total_num_falsePresent = total_num_Absent -total_num_trueAbsent
-            test_presence_accuracy = (total_num_truePresent+total_num_trueAbsent)/total_num_points
-            test_presence_precision = torch.tensor([total_num_truePresent/(total_num_truePresent+total_num_falsePresent), 
-                                                total_num_trueAbsent/(total_num_trueAbsent+total_num_falseAbsent)])
-            test_presence_recall = torch.tensor([total_num_truePresent/total_num_Present,
-                                            total_num_trueAbsent/total_num_Absent])
-            
-            pre_presence = pre_presence.unsqueeze(2).expand(-1, -1, 2)
-            cpts_pre = cpts_pre*pre_presence
-            
+            cpts_pre= cpts_pre*cpts_presence
+
             mean = np.array([0.485, 0.456, 0.406], dtype=np.float32)
             std = np.array([0.229, 0.224, 0.225], dtype=np.float32)
             pred = pred.cpu().numpy().copy()
@@ -458,16 +423,16 @@ def test(config, testloader, model,
                     result_image = Image.fromarray(np.uint8(result_image))
                     draw = ImageDraw.Draw(result_image) 
                     
-                    # # Overlay ground truth mask1 and 2, comment this section if only want to plot contour
-                    # ground_truth_mask = np.array(label[0], dtype=np.uint8)
-                    # mask_image = Image.new(
-                    #     "RGBA", result_image.size, transparent)
-                    # for class_id in [1, 2]:
-                    #     mask = (ground_truth_mask == class_id).astype(
-                    #         np.uint8) * 200
-                    #     mask_image.paste(
-                    #         cls_colors[class_id-1], (0, 0), Image.fromarray(mask).convert("L"))
-                    # result_image.paste(mask_image, (0, 0), mask_image)
+                    # Overlay ground truth mask1 and 2, comment this section if only want to plot contour
+                    ground_truth_mask = np.array(label[0], dtype=np.uint8)
+                    mask_image = Image.new(
+                        "RGBA", result_image.size, transparent)
+                    for class_id in [1, 2]:
+                        mask = (ground_truth_mask == class_id).astype(
+                            np.uint8) * 200
+                        mask_image.paste(
+                            cls_colors[class_id-1], (0, 0), Image.fromarray(mask).convert("L"))
+                    result_image.paste(mask_image, (0, 0), mask_image)
                                         
                     
                     # Overlay predicted mask1             
@@ -491,7 +456,7 @@ def test(config, testloader, model,
                                 [(x*1280 - 20, y*736 - 20), (x*1280 + 20, y*736 + 20)], fill=cls_colors[j])
                         j += 1
                     
-                    # Overlay predicted landmarks as crosses
+                    # # Overlay predicted landmarks as crosses
                     j =2
                     for landmark in predicted_landmarks[0]:
                         x, y = landmark
@@ -502,4 +467,3 @@ def test(config, testloader, model,
                                       y*736 + 15)], fill=cls_colors[j], width=6)
                         j += 1
                 result_image.save(os.path.join(sv_path, name[i]+'.png'))
-        logging.info("Presence_Acc:{: 4.4f}, Presence_Precision:{}, Presence_Recall:{}".format(test_presence_accuracy, test_presence_precision, test_presence_recall))
