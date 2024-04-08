@@ -20,11 +20,11 @@ from tensorboardX import SummaryWriter
 
 from lib.config import config
 from lib.config import update_config
-from lib.core.function_v4_1 import train, validate
+from lib.core.function import train, validate
 from lib.core.bdl_losses import GeneralizedDice, SurfaceLoss, DiceLoss
 from lib.utils.utils import create_logger
-from lib.datasets.pituitary_v4 import PitDataset
-from lib.models.seg_hrnet_v4_1 import HighResolutionNet
+from lib.datasets.pituitary import PitDataset
+from lib.models.seg_hrnet import HighResolutionNet
 import random
 from lib.core import mmwing_loss, focal_loss
 import torch.optim as optim
