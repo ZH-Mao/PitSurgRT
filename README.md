@@ -35,7 +35,7 @@ Endoscopic pituitary surgery entails navigating through the nasal cavity and sph
 
 ### Clinical validation
 <div align="center">
-  <img src="./docs/Clinical Motivation.png">
+  <img src="./docs/Clinical validation.png">
   <p>Clinical validation results in which 4 consultant neurosurgeons and 11 trainee neurosurgeons participated to validate the accuracy of PitSurgRT on surgical images from 10 patients.</p>
 </div>
 
