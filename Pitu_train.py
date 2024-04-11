@@ -37,7 +37,7 @@ torch.backends.cudnn.deterministic = True
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Train segmentation network')
+    parser = argparse.ArgumentParser(description='Train segmentation and landmark detection network')
 
     # parser.add_argument('--cfg',
     #                     help='experiment configure file name',
