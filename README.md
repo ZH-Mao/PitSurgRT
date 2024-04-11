@@ -24,7 +24,7 @@ Endoscopic pituitary surgery entails navigating through the nasal cavity and sph
 </div>
 
 ## Results
-### Performance
+### Segmenation and Landmartk Detection Performance
 <div align="center">
   <img src="./docs/Table1.png">
 </div>
