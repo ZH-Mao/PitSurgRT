@@ -166,8 +166,6 @@ def main():
         weight_decay=config.TRAIN.WD,
         nesterov=config.TRAIN.NESTEROV)
 
-    # scheduler = StepLR(optimizer, step_size=50, gamma=0.1)
-
     epoch_iters = np.int32(train_dataset.__len__() /
                            config.TRAIN.BATCH_SIZE_PER_GPU)
     train_best_mIoU = 0
