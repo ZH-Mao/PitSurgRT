@@ -2,7 +2,6 @@
 # Copyright (c) Microsoft
 # Licensed under the MIT License.
 # ------------------------------------------------------------------------------
-import os
 import random
 from lib.models.seg_hrnet import HighResolutionNet
 from lib.datasets.pituitary import PitDataset
@@ -10,16 +9,10 @@ from lib.utils.utils import create_logger
 from lib.core.function_v4 import test
 from lib.config import update_config
 from lib.config import config
-import segmentation_models_pytorch as smp
 import torch.optim
-import torch.nn as nn
 import torch
-import matplotlib.pyplot as plt
 import numpy as np
-from pathlib import Path
 import timeit
-import time
-import logging
 import pprint
 import argparse
 
