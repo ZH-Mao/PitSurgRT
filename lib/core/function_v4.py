@@ -21,6 +21,7 @@ from ..utils.utils import adjust_learning_rate
 from ..utils.utils import get_world_size, get_rank
 # import segmentation_models_pytorch as smp
 from PIL import Image, ImageDraw
+import cv2
 
 
 def reduce_tensor(inp):
@@ -225,9 +226,6 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
     total_num_points = 0
     total_distance = 0
     total_num_Present= 0 
-    # total_num_Absent=0
-    # total_num_truePresent = 0
-    # total_num_trueAbsent = 0
 
     with torch.no_grad():
         for _, batch in enumerate(tqdm(testloader)):
@@ -245,11 +243,6 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
             pred = F.interpolate(input=seg_pre, size=(
                 size[-2], size[-1]), mode='bilinear')
             seg_loss = Seg_loss(pred, label)
-            # seg_loss2=Seg_loss2(torch.sigmoid(pred), label.unsqueeze(1))
-            
-            # seg_loss2=Seg_loss2(pred, label)
-            # if seg_loss2==None:
-            #     continue
             
             cpts_pre = torch.reshape(
                 cpts_pre, (cpts_pre.size(0), cpts_gt.size(1), cpts_gt.size(2)))
@@ -358,10 +351,6 @@ def test(config, testloader, model,
          sv_dir='', sv_pred=True, device=None):
     model.eval()
     total_num_points = 0
-    total_num_Present= 0 
-    total_num_Absent=0
-    total_num_truePresent = 0
-    total_num_trueAbsent = 0
         
     with torch.no_grad():
         for _, batch in enumerate(tqdm(testloader)):
@@ -403,9 +392,6 @@ def test(config, testloader, model,
                     cls_colors = [(77, 77, 255, 200), (255, 255, 77, 200), 
                                   (180, 77, 224, 255), (77, 255, 77, 255),
                                   (122, 233, 222, 255), (255, 77, 255, 255)]
-                    # cls_colors = [(77, 77, 255, 200), (255, 255, 77, 200), 
-                    #               (180, 77, 224, 255),(255, 192, 77),(77, 255, 77, 255), (155, 166, 177), (77, 166, 77),
-                    #               (122, 233, 222, 255), (157, 99, 15),(255, 77, 255, 255)]
                     
                     # Overlay ground truth mask1_contour
                     ground_truth_mask = np.array(label[0], dtype=np.uint8)
