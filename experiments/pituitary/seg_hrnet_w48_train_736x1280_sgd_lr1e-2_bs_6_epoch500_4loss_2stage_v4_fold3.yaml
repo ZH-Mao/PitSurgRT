@@ -2,7 +2,7 @@ CUDNN:
   BENCHMARK: true
   DETERMINISTIC: false
   ENABLED: true
-OUTPUT_DIR: "/workspace/zhmao/data/HRNet_with_DICE_BD_Wing_FL_2stage_reproduce"
+OUTPUT_DIR: "/home/zhehua/data/Results"
 LOG_DIR: "log"
 WORKERS: 2
 
@@ -85,6 +85,7 @@ TRAIN:
   NESTEROV: false
   LOSS_WEIGHT: [0.9, 0.1, 0.8, 0.2]
   IGNORE_LABEL: 255
+  RESAMPLE: false
 TEST:
   IMAGE_SIZE:
     - 1280

@@ -40,15 +40,15 @@ _C.MODEL.EXTRA = CN(new_allowed=True)
 
 # DATASET related params
 _C.DATASET = CN()
-_C.DATASET.DATASET = 'pituitary'
+_C.DATASET.DATASET = ''
 _C.DATASET.ROOT = ''
 _C.DATASET.CSV_FILE_ROOT = ''
 _C.DATASET.NUM_CLASSES = 3
-_C.DATASET.TRAIN_SET = 'image_centroid_fold1_train.csv'
+_C.DATASET.TRAIN_SET = ''
 # _C.DATASET.EXTRA_TRAIN_SET = ''
-_C.DATASET.TEST_SET = 'image_centroid_fold1_val.csv'
-_C.DATASET.IMAGE_ROOT= '/workspace/zhmao/data/my_dataset/JPEGImages'
-_C.DATASET.MASK_ROOT= '/workspace/zhmao/data/my_dataset/SegmentationClass_bak'
+_C.DATASET.TEST_SET = ''
+_C.DATASET.IMAGE_ROOT= ''
+_C.DATASET.MASK_ROOT= ''
 
 # training
 _C.TRAIN = CN()
@@ -78,6 +78,7 @@ _C.TRAIN.STAGE1_EPOCH = 300
 # _C.TRAIN.EXTRA_EPOCH = 0
 
 _C.TRAIN.RESUME = False
+_C.TRAIN.RESAMPLE = True
 
 _C.TRAIN.BATCH_SIZE_PER_GPU = 32
 _C.TRAIN.SHUFFLE = True
