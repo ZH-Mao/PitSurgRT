@@ -23,6 +23,19 @@ Endoscopic pituitary surgery entails navigating through the nasal cavity and sph
   <p>The architecture of PitSurgRT for simultaneous segmentation and landmark detection.</p>
 </div>
 
+## Implementation and running
+The proposed method is implemented using PyTorch 1.12.0 on Python 3.8.17.
+
+To install Pytorch, please refer to [Pytorch](https://pytorch.org/).
+
+In our experiments, we install the following Pytorch version for GPU : 
+```
+pip install torch==1.12.0+cu116 torchvision==0.13.0+cu116 torchaudio==0.12.0 --extra-index-url https://download.pytorch.org/whl/cu116
+``` 
+'Pit_train.py' script is used to run the training process.
+
+'Pit_test.py' script is used the do the inference on input images, it will overlay the predication and ground truth (if you have them) on images and save them for visualization.
+
 ## Results
 ### Segmenation and Landmartk Detection Performance
 <div align="center">
@@ -53,3 +66,5 @@ If any part of our paper and repository is helpful to your work, please generous
   publisher={Springer}
 }
 ```
+## Contact
+If you have any questions or suggestions about this paper, feel free to contact me (z.mao@ucl.ac.uk).
