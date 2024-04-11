@@ -1,10 +1,8 @@
-# Copyright (c) OpenMMLab. All rights reserved.
 import functools
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-# from mmengine.fileio import load
 import matplotlib.pyplot as plt
 
 

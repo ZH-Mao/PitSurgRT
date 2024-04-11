@@ -345,8 +345,7 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
     
     return val_total_loss, mean_IoU, IoU_array, accuracy, recall, precision, mean_distance, mpck20
 
-def test(config, testloader, model,
-         sv_dir='', sv_pred=True, device=None):
+def test(testloader, model, sv_dir='', sv_pred=True, device=None):
     model.eval()
     total_num_points = 0
         

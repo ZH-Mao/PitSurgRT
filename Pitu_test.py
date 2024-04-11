@@ -1,7 +1,3 @@
-# ------------------------------------------------------------------------------
-# Copyright (c) Microsoft
-# Licensed under the MIT License.
-# ------------------------------------------------------------------------------
 import random
 from lib.models.seg_hrnet import HighResolutionNet
 from lib.datasets.pituitary import PitDataset
@@ -15,8 +11,6 @@ import numpy as np
 import timeit
 import pprint
 import argparse
-
-from lib.utils.modelsummary import get_model_summary
 
 seed = 2
 torch.manual_seed(seed)
@@ -97,7 +91,7 @@ def main():
 
     start = timeit.default_timer()
 
-    test(config, testloader, model, sv_dir=final_output_dir, device=device)
+    test(testloader, model, sv_dir=final_output_dir, device=device)
 
     end = timeit.default_timer()
     logger.info('Mins: %d' % np.int32((end-start)/60))
