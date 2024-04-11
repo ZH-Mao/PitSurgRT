@@ -50,7 +50,7 @@ def parse_args():
     #                     required=True,
     #                     type=str)
     parser.add_argument('--cfg',
-                        default=r'/home/zhehua/codes/Pituitary-Segment-Centroid/experiments/pituitary/seg_hrnet_w48_train_736x1280_sgd_lr1e-2_bs_6_4loss_2stage_v4_fold1.yaml',
+                        default=r'./experiments/pituitary/seg_hrnet_w48_train_736x1280_sgd_lr1e-2_bs_6_epoch500_4loss_2stage_v4_fold1.yaml',
                         help='experiment configure file name',
                         type=str)
     parser.add_argument("--local_rank", type=int, default=0)

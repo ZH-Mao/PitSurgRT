@@ -163,7 +163,6 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,trainloader,
             optimizer.param_groups[0]['lr'] = lr
             optimizer.param_groups[1]['lr'] = lr
             optimizer.param_groups[2]['lr'] = lr
-            # optimizer.param_groups[3]['lr'] = lr
             
     confusion_matrix = torch.from_numpy(confusion_matrix).to(device)
     reduced_confusion_matrix = reduce_tensor(confusion_matrix)
@@ -253,7 +252,6 @@ def validate(config, testloader, model, Seg_loss, Seg_loss2, Landmark_loss, Land
             else:
                 seg_loss2=Seg_loss2(pred, dist_map_label)
                 cpts_loss = Landmark_loss(cpts_pre, cpts_gt)
-                # presence_loss = Landmark_presence_loss(cpts_presence_pre, cpts_presence[:,:,0])
                 cpts_loss2 = Landmark_loss2(cpts_pre, cpts_gt)
 
             # calculate euclidean_distance between predicted and ground-truth landmarks
