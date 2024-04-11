@@ -5,19 +5,13 @@ os.environ["CUDA_VISIBLE_DEVICES"]='0'  #GPU id
 import argparse
 import os
 import pprint
-
 import logging
-import time
 import timeit
-from pathlib import Path
-
 import numpy as np
 import matplotlib.pyplot as plt
-
 import torch
 import torch.optim
 from tensorboardX import SummaryWriter
-
 from lib.config import config
 from lib.config import update_config
 from lib.core.function_v4 import train, validate

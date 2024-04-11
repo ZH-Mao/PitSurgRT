@@ -1,7 +1,6 @@
 # ------------------------------------------------------------------------------
 # Copyright (c) Microsoft
 # Licensed under the MIT License.
-# Written by Ke Sun (sunk@mail.ustc.edu.cn)
 # ------------------------------------------------------------------------------
 
 from __future__ import absolute_import
@@ -265,7 +264,7 @@ class HRNetPoolOutput(nn.Module):
         self.conv = nn.Conv2d(inchannels, outchannels,
                               kernel_size=1, bias=False)
         self.avgpool = nn.AdaptiveAvgPool2d(
-            output_size=1)   # 自适应池化，得到指定大小的池化结果
+            output_size=1)  
         self.relu = nn.ReLU()
 
     def forward(self, inputs):

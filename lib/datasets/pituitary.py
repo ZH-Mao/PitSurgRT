@@ -10,8 +10,6 @@ import cv2
 from PIL import Image
 from .bdl_dataloader import dist_map_transform
 
-# Create a PitDataset class
-
 
 class PitDataset(Dataset):
     # Initialize the class
@@ -80,12 +78,6 @@ class PitDataset(Dataset):
         cpts[:, 0] = cpts[:, 0]*1280
         cpts[:, 1] = cpts[:, 1]*720
 
-        # Load the image and mask
-        # 此处有问题，不知道为什么使用此方法在图像增强(album.ColorJitter)之后，灰度范围会变成0-1
-        # 测试可能是因为图像变成了浮点型的缘故，使用浮点型plt.imshow(image)显示的是空白
-        # image = np.array(Image.open(image_path).convert('RGB'), dtype=np.float32)
-        # mask =  np.array(Image.open(mask_path))
-
         image = cv2.imread(image_path)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
@@ -103,14 +95,14 @@ class PitDataset(Dataset):
         cpts[:, 0] = cpts[:, 0]/1280
         cpts[:, 1] = cpts[:, 1]/736
 
-        # find points that excess the range of image after aug and replace them with [-100, -100]
+        # find points that excess the range of image after aug and replace them with [0., 0.]
         condition_first_column = (cpts[:, 0] > 1) | (cpts[:, 0] < 0)
         condition_second_column = (cpts[:, 1] > 1) | (cpts[:, 1] < 0)
         rows_to_change = np.where(
             condition_first_column | condition_second_column)
         cpts[rows_to_change] = 0.
 
-        # Replace coordinates that are original absent with [-100,-100]
+        # Replace coordinates that are original absent with [0.,0.]
         cpts_absence = np.float32(cpts_presence == 0)
         cpts = cpts-0.*cpts_absence
         cpts_presence = np.float32(cpts != 0.)
@@ -126,7 +118,6 @@ class PitDataset(Dataset):
         dist_map_tensor=self.disttransform(mask)
 
         return image, mask, cpts, cpts_presence, name, dist_map_tensor
-        # return image, mask, cpts, cpts_presence, name
 
 
 
