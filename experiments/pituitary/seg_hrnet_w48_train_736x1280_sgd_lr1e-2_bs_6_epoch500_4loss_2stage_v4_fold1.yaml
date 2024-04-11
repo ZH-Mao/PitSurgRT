@@ -8,12 +8,12 @@ WORKERS: 2
 
 DATASET:
   DATASET: pituitary
-  ROOT: /workspace/zhmao/code-d/Pituitary-Segment-Centroid/data/Segmentation_Centroid_5_fold_validation_split_4structure
+  ROOT: /home/zhehua/codes/PitSurgRT/data/Segmentation_Centroid_5_fold_validation_split_4structure
   CSV_FILE_ROOT: "val1"
   TEST_SET: "image_centroid_fold1_val.csv"
   TRAIN_SET: "image_centroid_fold1_train.csv"
-  IMAGE_ROOT: "/workspace/zhmao/data/my_dataset/JPEGImages"
-  MASK_ROOT: "/workspace/zhmao/data/my_dataset/SegmentationClass_bak"
+  IMAGE_ROOT: "/home/zhehua/data/PitDatasets/JEPGImages"
+  MASK_ROOT: "/home/zhehua/data/PitDatasets/PNGMasks"
   NUM_CLASSES: 3
 MODEL:
   NAME: seg_hrnet
