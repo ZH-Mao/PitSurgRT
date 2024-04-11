@@ -133,10 +133,6 @@ def main():
         param.requires_grad = False
     for param in model.module.detector1.parameters():
         param.requires_grad = False
-    for param in model.module.output2.parameters():
-        param.requires_grad = False
-    for param in model.module.detector2.parameters():
-        param.requires_grad = False
 
     shared_params = []
     head1_params = list(chain(model.module.last_layer.parameters()))
