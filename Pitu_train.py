@@ -141,21 +141,20 @@ def main():
     shared_params = []
     head1_params = list(chain(model.module.last_layer.parameters()))
     head2_params = list(chain(model.module.output1.parameters(), model.module.detector1.parameters()))
-    head3_params = list(chain(model.module.output2.parameters(), model.module.detector2.parameters()))
+
     
     head1_param_ids = set([id(param) for param in head1_params])
     head2_param_ids = set([id(param) for param in head2_params])
-    head3_param_ids = set([id(param) for param in head3_params])
+
     
     for param in model.module.parameters():
-        if id(param) not in head1_param_ids and id(param) not in head2_param_ids and id(param) not in head3_param_ids:
+        if id(param) not in head1_param_ids and id(param) not in head2_param_ids:
             shared_params.append(param)
 
     optimizer = optim.SGD([
         {'params': shared_params, 'lr': config.TRAIN.LR},
         {'params': head1_params, 'lr': config.TRAIN.LR},
-        {'params': head2_params, 'lr': 0.0},
-        {'params': head3_params, 'lr': 0.0}], 
+        {'params': head2_params, 'lr': 0.0}], 
         momentum=config.TRAIN.MOMENTUM,
         weight_decay=config.TRAIN.WD,
         nesterov=config.TRAIN.NESTEROV)
