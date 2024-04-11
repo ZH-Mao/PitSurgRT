@@ -31,7 +31,7 @@ def parse_args():
     #                     required=True,
     #                     type=str)
     parser.add_argument('--cfg',
-                        default=r'/workspace/zhmao/code-d/Pituitary-Segment-Centroid/experiments/pituitary/seg_hrnet_w48_train_736x1280_sgd_lr1e-2_bs_6_epoch350_4loss_2stage_v4_fold5.yaml',
+                        default=r'./experiments/pituitary/seg_hrnet_w48_train_736x1280_sgd_lr1e-2_bs_6_epoch500_4loss_2stage_v4_fold1.yaml',
                         help='experiment configure file name',
                         type=str)
     parser.add_argument('--model',
