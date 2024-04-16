@@ -66,5 +66,10 @@ If any part of our paper and repository is helpful to your work, please generous
   publisher={Springer}
 }
 ```
+
+## Acknowledgement
+
+This repo is largely based on [HRNet-Semantic-Segmentation](https://github.com/HRNet/HRNet-Semantic-Segmentation). Thanks for their excellent work.
+
 ## Contact
 If you have any questions or suggestions about this paper, feel free to contact me (z.mao@ucl.ac.uk).
